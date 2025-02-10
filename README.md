@@ -12,7 +12,7 @@ This practice involves designing and implementing a communication protocol layer
 
 **Functionality:** ⚙️
 
-The implemented library (`ProtocolLayer.c`, `ProtocolLayer.h`, `ProtocolLayer_cfg.h`) offers these functions:
+The implemented library (`protocol_layer.c`, `protocol_layer.h`, `protocol_layer_cfg.h`) offers these functions:
 
 * `ProtocolLayer_init()`: Initializes the protocol layer (including the Ethernet interface).
 * `ProtocolLayer_send()`: Sends an encrypted message with CRC32 over Ethernet.  ➡️
@@ -39,9 +39,9 @@ The library is tested with a Python application (on the PC side) that exchanges 
 
 **Repository Structure:** 📁
 
-* `ProtocolLayer.c`: Library implementation.
-* `ProtocolLayer.h`: Library header file.
-* `ProtocolLayer_cfg.h`: Library configuration file (AES key, IV).
+* `protocol_layer.c`: Library implementation.
+* `protocol_layer.h`: Library header file.
+* `protocol_layer_cfg.h`: Library configuration file (AES key, IV).
 * `[Python Application]:` Python test application (PC side).
 * `[FRDM-RW612 Test Code]:` Code to test the library on the FRDM-RW612 board.
 * `README.md`: This file.
