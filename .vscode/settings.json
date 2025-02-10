@@ -1,6 +1,13 @@
 {
     "files.associations": {
         "fsl_crc.h": "c",
-        "app.h": "c"
+        "app.h": "c",
+        "fsl_silicon_id.h": "c",
+        "fsl_enet.h": "c",
+        "fsl_debug_console.h": "c",
+        "protocol_layer.h": "c",
+        "fsl_phy.h": "c",
+        "board.h": "c",
+        "aes.h": "c"
     }
 }
