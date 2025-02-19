@@ -8,6 +8,8 @@
         "protocol_layer.h": "c",
         "fsl_phy.h": "c",
         "board.h": "c",
-        "aes.h": "c"
+        "aes.h": "c",
+        "stdint.h": "c",
+        "protocol_layer_cfg.h": "c"
     }
 }

@@ -12,6 +12,7 @@ file.
 #include "aes.h"        // libray from https://github.com/kokke/tiny-AES-c
 #include "fsl_crc.h"  // library of CRC from SDK
 #include "app.h"        // library of Ethernet from SDK
+#include "protocol_layer_cfg.h"  // Include the configuration header
 
 /*******************************************************************************
  * Variables
@@ -162,6 +163,9 @@ void ProtocolLayer_init(void) {
 
 #ifndef USER_DEFINED_MAC_ADDRESS
     /* Set special address for each chip. */
+    uint8_t srcMacAddr[] = SRC_MAC_ADDRESS;
+    memcpy(g_macAddr, srcMacAddr, 6);
+#else
     SILICONID_ConvertToMacAddr(&g_macAddr);
 #endif
 
@@ -190,12 +194,13 @@ void ENET_BuildBroadCastFrame(void)
 {
     uint32_t count  = 0;
     uint32_t length = ENET_DATA_LENGTH - 14;
+    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
 
     for (count = 0; count < 6U; count++)
     {
-        g_frame[count] = 0xFFU;
+        g_frame[count] = destMacAddr[count];  // Set the destination MAC address
     }
-    memcpy(&g_frame[6], &g_macAddr[0], 6U);
+    memcpy(&g_frame[6], &g_macAddr[0], 6U);  // Source MAC address
     g_frame[12] = (length >> 8) & 0xFFU;
     g_frame[13] = length & 0xFFU;
 

@@ -12,6 +12,7 @@ necessary to use the library.
 #include <stddef.h>
 #include "fsl_enet.h"
 #include "fsl_phy.h"
+#include "protocol_layer_cfg.h"
 
 #include "aes.h"        // libray from https://github.com/kokke/tiny-AES-c
 #include "fsl_crc.h"  // library of CRC from SDK
