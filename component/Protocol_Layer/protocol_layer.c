@@ -163,7 +163,7 @@ void ProtocolLayer_init(void) {
 
 #ifndef USER_DEFINED_MAC_ADDRESS
     /* Set special address for each chip. */
-    uint8_t srcMacAddr[] = SRC_MAC_ADDRESS;
+uint8_t srcMacAddr[] = SRC_MAC_ADDRESS;
     memcpy(g_macAddr, srcMacAddr, 6);
 #else
     SILICONID_ConvertToMacAddr(&g_macAddr);
@@ -194,7 +194,7 @@ void ENET_BuildBroadCastFrame(void)
 {
     uint32_t count  = 0;
     uint32_t length = ENET_DATA_LENGTH - 14;
-    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
+uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
 
     for (count = 0; count < 6U; count++)
     {
