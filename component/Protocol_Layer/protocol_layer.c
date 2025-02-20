@@ -173,13 +173,64 @@ uint8_t srcMacAddr[] = SRC_MAC_ADDRESS;
     ENET_Init(EXAMPLE_ENET, &g_handle, &config, &buffConfig[0], &g_macAddr[0], EXAMPLE_CLOCK_FREQ);
     ENET_ActiveRead(EXAMPLE_ENET);
 
+    #if EXAMPLE_USES_LOOPBACK_CABLE
+        /* PHY link status update. */
+#if (defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
+        if (linkChange)
+        {
+            linkChange = false;
+            PHY_ClearInterrupt(&phyHandle);
+            PHY_GetLinkStatus(&phyHandle, &link);
+            GPIO_EnableLinkIntr();
+        }
+#else
+        PHY_GetLinkStatus(&phyHandle, &link);
+#endif
+        if (tempLink != link)
+        {
+            PRINTF("PHY link changed, link status = %u\r\n", link);
+            tempLink = link;
+        }
+#endif /*EXAMPLE_USES_LOOPBACK_CABLE*/
+
 }
 
-// Function to send an encrypted message with CRC32 over Ethernet
+// Function to send a message over Ethernet
 void ProtocolLayer_send(const uint8_t* message, size_t length) {
-    // Encrypt the message
-    // Calculate CRC32
-    // Send the message over Ethernet
+    uint8_t frame[ENET_DATA_LENGTH + 14 + 4]; // 14 bytes for Ethernet header + 4 bytes for CRC32
+    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
+
+    // Set the destination MAC address
+    for (uint32_t count = 0; count < 6U; count++) {
+        frame[count] = destMacAddr[count];
+    }
+
+    // Set the source MAC address
+    memcpy(&frame[6], &g_macAddr[0], 6U);
+
+    // Set the length of the data
+    frame[12] = (length >> 8) & 0xFFU;
+    frame[13] = length & 0xFFU;
+
+    // Copy the message into the frame
+    memcpy(&frame[14], message, length);
+
+    // Ensure the payload is at least 48 bytes
+    if (length < 48) {
+        memset(&frame[14 + length], 0, 48 - length);
+        length = 48;
+    }
+
+    // Calculate CRC32 (dummy value for now)
+    uint32_t crc = 0xFFFFFFFF;
+    memcpy(&frame[14 + length], &crc, 4);
+
+    // Send the frame over Ethernet
+    if (kStatus_Success == ENET_SendFrame(EXAMPLE_ENET, &g_handle, frame, length + 18, 0, false, NULL)) {
+        PRINTF("Message sent successfully!\r\n");
+    } else {
+        PRINTF("Failed to send message.\r\n");
+    }
 }
 
 // Function to receive a message from Ethernet, verify the CRC32, and decrypt it
@@ -194,7 +245,7 @@ void ENET_BuildBroadCastFrame(void)
 {
     uint32_t count  = 0;
     uint32_t length = ENET_DATA_LENGTH - 14;
-uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
+    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
 
     for (count = 0; count < 6U; count++)
     {

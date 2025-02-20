@@ -39,27 +39,13 @@ int main(void)
     /* Build broadcast for sending. */
     ENET_BuildBroadCastFrame();
 
+    // Send a custom message
+    const char* message = "Test number one :D";
+    ProtocolLayer_send((const uint8_t*)message, strlen(message));
+
     while (1)
     {
-#if EXAMPLE_USES_LOOPBACK_CABLE
-        /* PHY link status update. */
-#if (defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
-        if (linkChange)
-        {
-            linkChange = false;
-            PHY_ClearInterrupt(&phyHandle);
-            PHY_GetLinkStatus(&phyHandle, &link);
-            GPIO_EnableLinkIntr();
-        }
-#else
-        PHY_GetLinkStatus(&phyHandle, &link);
-#endif
-        if (tempLink != link)
-        {
-            PRINTF("PHY link changed, link status = %u\r\n", link);
-            tempLink = link;
-        }
-#endif /*EXAMPLE_USES_LOOPBACK_CABLE*/
+
         /* Get the Frame size */
         status = ENET_GetRxFrameSize(&g_handle, &length, 0);
         /* Call ENET_ReadFrame when there is a received frame. */
