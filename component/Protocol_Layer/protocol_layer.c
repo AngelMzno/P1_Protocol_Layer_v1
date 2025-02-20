@@ -233,11 +233,63 @@ void ProtocolLayer_send(const uint8_t* message, size_t length) {
     }
 }
 
-// Function to receive a message from Ethernet, verify the CRC32, and decrypt it
-void ProtocolLayer_receive(uint8_t* buffer, size_t length) {
-    // Receive the message from Ethernet
-    // Verify CRC32
-    // Decrypt the message
+/*I added this funtion only to print the received frame for debugging*/
+// Function to print the received frame
+void ProtocolLayer_printFrame(const uint8_t* frame, uint32_t frameLength) {
+    PRINTF("A frame received. The length %d\r\n", frameLength);
+    PRINTF("Dest Address %02x:%02x:%02x:%02x:%02x:%02x Src Address %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+           frame[0], frame[1], frame[2], frame[3], frame[4], frame[5],
+           frame[6], frame[7], frame[8], frame[9], frame[10], frame[11]);
+
+    // Print the received data in hex
+    PRINTF("Received data (hex): ");
+    for (uint32_t i = 0; i < frameLength; i++) {
+        PRINTF("%02x ", frame[i]);
+    }
+    PRINTF("\r\n");
+
+    // Print the received data in ASCII
+    PRINTF("Received data (ASCII): ");
+    for (uint32_t i = 0; i < frameLength; i++) {
+        if (frame[i] >= 32 && frame[i] <= 126) { // Printable ASCII range
+            PRINTF("%c", frame[i]);
+        } else {
+            PRINTF(".");
+        }
+    }
+    PRINTF("\r\n");
+}
+
+// Function to receive a message from Ethernet
+void ProtocolLayer_receive(void) {
+    uint32_t frameLength = 0;
+
+    // Get the frame size
+    status = ENET_GetRxFrameSize(&g_handle, &frameLength, 0);
+    if (frameLength != 0) {
+        // Allocate memory for the frame
+        uint8_t* frame = (uint8_t*)malloc(frameLength);
+        if (frame == NULL) {
+            PRINTF("Failed to allocate memory for frame.\r\n");
+            return;
+        }
+
+        // Read the frame
+        status = ENET_ReadFrame(EXAMPLE_ENET, &g_handle, frame, frameLength, 0, NULL);
+        if (status == kStatus_Success) {
+            /*I added this funtion only to print the received frame for debugging*/
+            //ProtocolLayer_printFrame(frame, frameLength); 
+        } else {
+            PRINTF("Failed to read frame.\r\n");
+        }
+
+        // Free the allocated memory
+        free(frame);
+    } else if (status == kStatus_ENET_RxFrameError) {
+        // Update the received buffer when error happened
+        ENET_GetRxErrBeforeReadFrame(&g_handle, &eErrStatic, 0);
+        ENET_ReadFrame(EXAMPLE_ENET, &g_handle, NULL, 0, 0, NULL);
+    }
 }
 
 /*! @brief Build Frame for transmit. */
