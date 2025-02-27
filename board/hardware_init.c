@@ -59,6 +59,9 @@ void BOARD_InitHardware(void)
     MDIO_Init();
     g_phy_resource.read  = MDIO_Read;
     g_phy_resource.write = MDIO_Write;
+
+    RESET_PeripheralReset(kCRC_RST_SHIFT_RSTn);
+    CLOCK_EnableClock(kCLOCK_Crc);
 }
 
 /*${function:end}*/

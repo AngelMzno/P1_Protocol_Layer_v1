@@ -18,8 +18,12 @@ file.
  * Variables
  ******************************************************************************/
 enet_handle_t g_handle;
-uint8_t g_frame[ENET_DATA_LENGTH + 14];
-uint8_t g_macAddr[6] = MAC_ADDRESS;
+uint8_t g_frame[ENET_DATA_LENGTH + 14]; 
+uint8_t g_macAddr[6] = SRC_MAC_ADDRESS;
+uint8_t destMacAddr[] = DEST_MAC_ADDRESS;
+static CRC_Type *CRC_base = CRC_ENGINE;
+
+
 phy_handle_t phyHandle;
 #if ((EXAMPLE_USES_LOOPBACK_CABLE) && defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
 bool linkChange = false;
@@ -195,6 +199,60 @@ uint8_t srcMacAddr[] = SRC_MAC_ADDRESS;
 
 }
 
+#define CRC32_DATA_SIZE 4 // Size of the CRC is 4 bytes
+
+// Function to initialize CRC32
+void ProtocolLayer_initCRC32(void) 
+{
+    crc_config_t config;
+
+    config.polynomial    = kCRC_Polynomial_CRC_32;
+    config.reverseIn     = true;
+    config.complementIn  = false;
+    config.reverseOut    = true;
+    config.complementOut = true;
+    config.seed          = 0xFFFFFFFFU;
+
+    CRC_Init(CRC_base, &config); 
+}
+
+// Function to check the CRC of a received message
+static bool ProtocolLayer_CheckCRC(uint8_t* frame, uint32_t frameLength) {
+    bool status = false;
+    uint32_t msgCRC = 0;
+    uint32_t calCRC = 0;
+
+    // Ensure that the frame length is at least 4 to obtain the CRC
+    if (frameLength < CRC32_DATA_SIZE) {
+        return status; // Cannot verify if the size is less than the CRC
+    }
+
+    // Get the CRC from the message (last 4 bytes)
+    memcpy((uint8_t*)&msgCRC, &frame[frameLength - CRC32_DATA_SIZE], CRC32_DATA_SIZE);
+    frameLength -= CRC32_DATA_SIZE; // Adjust the length to exclude the CRC
+
+    // Initialize the CRC
+    CRC_WriteSeed(CRC_base, 0xFFFFFFFF); // Initialize the CRC
+
+    // Write the rest of the data into the CRC module to calculate the CRC
+    CRC_WriteData(CRC_base, frame, frameLength);
+    calCRC = CRC_Get32bitResult(CRC_base); // Get the calculated CRC
+
+    // Compare the CRCs
+    if (msgCRC == calCRC) {
+        status = true; // CRC matches
+    }
+
+    return status; // Return the validation status
+}
+
+// Function to calculate CRC32
+uint32_t CRC32_calculate(const uint8_t* data, size_t length) {
+    CRC_WriteSeed(CRC_base, 0xFFFFFFFF); // Initialize the CRC
+    CRC_WriteData(CRC_base, data, length); // Write the data to the CRC module
+    return CRC_Get32bitResult(CRC_base); // Get the calculated CRC
+}
+
 // Function to send a message over Ethernet
 void ProtocolLayer_send(const uint8_t* message, size_t length) {
     uint8_t frame[ENET_DATA_LENGTH + 14 + 4]; // 14 bytes for Ethernet header + 4 bytes for CRC32
@@ -221,8 +279,8 @@ void ProtocolLayer_send(const uint8_t* message, size_t length) {
         length = 48;
     }
 
-    // Calculate CRC32 (dummy value for now)
-    uint32_t crc = 0xFFFFFFFF;
+    // Calculate CRC32     
+    uint32_t crc = CRC32_calculate(frame, length + 14); 
     memcpy(&frame[14 + length], &crc, 4);
 
     // Send the frame over Ethernet
@@ -263,6 +321,7 @@ void ProtocolLayer_printFrame(const uint8_t* frame, uint32_t frameLength) {
 // Function to receive a message from Ethernet
 void ProtocolLayer_receive(void) {
     uint32_t frameLength = 0;
+    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
 
     // Get the frame size
     status = ENET_GetRxFrameSize(&g_handle, &frameLength, 0);
@@ -277,8 +336,18 @@ void ProtocolLayer_receive(void) {
         // Read the frame
         status = ENET_ReadFrame(EXAMPLE_ENET, &g_handle, frame, frameLength, 0, NULL);
         if (status == kStatus_Success) {
-            /*I added this funtion only to print the received frame for debugging*/
-            //ProtocolLayer_printFrame(frame, frameLength); 
+            // Check if the destination MAC address matches
+            if (memcmp(frame, destMacAddr, 6) == 0) {
+                // Verify CRC32
+                if (ProtocolLayer_CheckCRC(frame, frameLength)) {
+                    // Process the received frame
+                    ProtocolLayer_printFrame(frame, frameLength - CRC32_DATA_SIZE);  // Print the received frame for debugging
+                } else {
+                    PRINTF("CRC mismatch. Frame may be corrupted.\r\n");
+                }
+            } else {
+                PRINTF("Received frame with non-matching destination MAC address.\r\n");
+            }
         } else {
             PRINTF("Failed to read frame.\r\n");
         }

@@ -10,6 +10,7 @@
 #include "protocol_layer.h"
 #include "board.h"
 #include "app.h"
+#include "fsl_common.h"  
 
 /*******************************************************************************
  * Definitions
@@ -39,33 +40,47 @@ int main(void)
     /* Build broadcast for sending. */
     ENET_BuildBroadCastFrame();
 
-    // Send a custom message
-    const char* message = "Test number one :D";
-    ProtocolLayer_send((const uint8_t*)message, strlen(message));
+    // Test the ProtocolLayer_send function
+    test_ProtocolLayer_send();
 
     while (1)
     {
         // Receive a message
         ProtocolLayer_receive();
 
-        if (testTxNum < ENET_TRANSMIT_DATA_NUM)
-        {
-            /* Send a multicast frame when the PHY is link up. */
-#if EXAMPLE_USES_LOOPBACK_CABLE
-            if (link)
-#endif
-            {
-                testTxNum++;
-                if (kStatus_Success ==
-                    ENET_SendFrame(EXAMPLE_ENET, &g_handle, &g_frame[0], ENET_DATA_LENGTH, 0, false, NULL))
-                {
-                    PRINTF("The %d frame transmitted success!\r\n", testTxNum);
-                }
-                else
-                {
-                    PRINTF(" \r\nTransmit frame failed!\r\n");
-                }
-            }
-        }
+
+    }
+}
+
+// Function to test ProtocolLayer_send
+void test_ProtocolLayer_send(void)
+{
+    const char* messages[] = {
+        "No todo lo que es oro reluce...",
+        "Aún en la oscuridad...",
+        "¿Qué es la vida?",
+        "No temas a la oscuridad...",
+        "Hasta los más pequeños...",
+        "No digas que el sol se ha puesto...",
+        "El coraje se encuentra...",
+        "No todos los tesoros...",
+        "Es peligroso...",
+        "Un mago nunca llega tarde...",
+        "Aún hay esperanza...",
+        "El mundo está cambiando...",
+        "Las raíces profundas...",
+        "No se puede...",
+        "Y sobre todo...",
+        "De las cenizas, un fuego..."
+    };
+
+    size_t num_messages = sizeof(messages) / sizeof(messages[0]);
+
+    for (size_t i = 0; i < num_messages; i++) {
+        PRINTF("Sending test message: %s\r\n", messages[i]);
+        ProtocolLayer_send((const uint8_t*)messages[i], strlen(messages[i]));
+        SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);  // Esperar 2 segundos entre cada mensaje
+        ProtocolLayer_receive();
+        SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);
     }
 }

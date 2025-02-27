@@ -96,8 +96,7 @@ extern bool tempLink;
 
 void ProtocolLayer_init(void);
 void ProtocolLayer_send(const uint8_t* message, size_t length);
-void ProtocolLayer_receive(void);
-void ProtocolLayer_printFrame(const uint8_t* frame, uint32_t frameLength);
+void ProtocolLayer_receive(uint8_t* buffer, size_t length);
 
 void ENET_BuildBroadCastFrame(void);
 #if (defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
