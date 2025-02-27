@@ -1,20 +1,17 @@
 /*
-This file should include any #define that the user can 
-use to configure the library. For example, the encryption 
-key or the initialization vector value for AES.
+Este archivo contiene las configuraciones de la biblioteca, como la clave de encriptación y el vector de inicialización para AES.
 */
 
 #ifndef _PROTOCOL_LAYER_CFG_H_
 #define _PROTOCOL_LAYER_CFG_H_
 
-// Define the encryption key and initialization vector for AES
-#define AES_KEY {0x1a, 0x2b, 0x3c, 0x4d, 0x5e, 0x6f, 0x7a, 0x8b, 0x9c, 0xad, 0xbe, 0xcf, 0xd0, 0xe1, 0xf2, 0x03}
-#define AES_IV  {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
+#define AES_KEY {"My16byteKey00000"}
+#define AES_IV  {"My16byteKey00000"}
 
-// Define the destination MAC address
+static const uint8_t aes_key[16] = "My16byteKey00000";
+static const uint8_t aes_iv[16] = "My16byteKey00000";
+
 #define DEST_MAC_ADDRESS {0x00, 0x2b, 0x67, 0x36, 0x70, 0x0F}
-
-// Define the source MAC address
 #define SRC_MAC_ADDRESS {0x54, 0x27, 0x8d, 0x24, 0x2a, 0xf2}
 
 #endif // _PROTOCOL_LAYER_CFG_H_

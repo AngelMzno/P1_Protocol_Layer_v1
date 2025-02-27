@@ -61,6 +61,17 @@ necessary to use the library.
 #define USER_DEFINED_MAC_ADDRESS
 #endif
 
+#define CRC32_DATA_SIZE        (4)
+#define MAC_DATA_SIZE          (6)
+#define HEADER_MSG_SIZE        (14 + CRC32_DATA_SIZE)
+
+#define DATA_LENGTH_INDEX      (12)
+#define DATA_BUFFER_INDEX      (14)
+
+// Function to swap the endianess of a 16-bit value
+static inline uint16_t SWAP16(uint16_t x) {
+    return (x >> 8) | (x << 8);
+}
 
 /*******************************************************************************
  * Variables
@@ -96,13 +107,14 @@ extern bool tempLink;
 
 void ProtocolLayer_init(void);
 void ProtocolLayer_send(const uint8_t* message, size_t length);
-void ProtocolLayer_receive(void);
-void test_ProtocolLayer_send(void);
-
+uint16_t ProtocolLayer_receive(uint8_t* msgBuffer);
+void ProtocolLayer_initCRC32(void);
+void ProtocolLayer_printFrame(const uint8_t* frame, uint32_t frameLength);
 void ENET_BuildBroadCastFrame(void);
 #if (defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
 void GPIO_EnableLinkIntr(void);
 #endif
+void test_ProtocolLayer_send(void);
 
 #endif // _PROTOCOL_LAYER_H_
 

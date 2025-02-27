@@ -5,9 +5,8 @@ from Crypto.Util.Padding import pad, unpad
 import zlib
 import sys, signal
 
-
-pc_eth_mac = "8c:16:45:35:1b:22"
-frdm_eth_mac = "54:27:8d:00:00:00"
+pc_eth_mac = "00:2b:67:36:70:0f"
+frdm_eth_mac = "54:27:8d:24:2a:f2"
 aes_key = b"My16byteKey00000"
 aes_iv = b"My16byteIV000000"
 
@@ -60,7 +59,7 @@ for iface_name, iface_info in conf.ifaces.items():
     if iface_info.mac == pc_eth_mac:
         # print(f"  - This is the interface we want to use!")
         conf.iface = iface_name
-print("Listening ");
+
 try:
     while True:
         # Receive packets with the source MAC address of the FRDM board
@@ -83,11 +82,11 @@ try:
 
         # Extract the CRC integer value from the payload
         packet_crc = int.from_bytes(payload[payload_len-4:payload_len], byteorder='little')
-        # print(f"CRC32: {packet_crc:08x}")
+        print(f"CRC32: {packet_crc:08x}")
 
         # Compute the CRC32 of the payload
         calc_crc = zlib.crc32(payload[:payload_len - 4])
-        # print(f"Calc CRC32: {calc_crc:08x}")
+        print(f"Calc CRC32: {calc_crc:08x}")
 
         if packet_crc != calc_crc:
             print("CRC32 is incorrect!")
@@ -113,7 +112,7 @@ try:
 
         # Compute the CRC32 of the reply payload
         calc_crc = zlib.crc32(encrypted_data)
-        # print(f"reply Calc CRC32: {calc_crc:08x}")
+        print(f"reply Calc CRC32: {calc_crc:08x}")
 
         send_payload = encrypted_data + calc_crc.to_bytes(4, byteorder='little')
         # Construct an Ethernet packet with Ethertype (Data lenght) 100
