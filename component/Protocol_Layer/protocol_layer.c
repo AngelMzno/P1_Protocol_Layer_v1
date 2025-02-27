@@ -263,6 +263,7 @@ void ProtocolLayer_printFrame(const uint8_t* frame, uint32_t frameLength) {
 // Function to receive a message from Ethernet
 void ProtocolLayer_receive(void) {
     uint32_t frameLength = 0;
+    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
 
     // Get the frame size
     status = ENET_GetRxFrameSize(&g_handle, &frameLength, 0);
@@ -277,8 +278,13 @@ void ProtocolLayer_receive(void) {
         // Read the frame
         status = ENET_ReadFrame(EXAMPLE_ENET, &g_handle, frame, frameLength, 0, NULL);
         if (status == kStatus_Success) {
-            /*I added this funtion only to print the received frame for debugging*/
-            //ProtocolLayer_printFrame(frame, frameLength); 
+            // Check if the destination MAC address matches
+            if (memcmp(frame, destMacAddr, 6) == 0) {
+                // Process the received frame
+                ProtocolLayer_printFrame(frame, frameLength);  // Print the received frame for debugging
+            } else {
+                PRINTF("Received frame with non-matching destination MAC address.\r\n");
+            }
         } else {
             PRINTF("Failed to read frame.\r\n");
         }
