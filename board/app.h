@@ -28,6 +28,7 @@ extern phy_ksz8081_resource_t g_phy_resource;
 
 /* ENET clock frequency. */
 #define EXAMPLE_CLOCK_FREQ CLOCK_GetMainClkFreq()
+#define CRC_ENGINE CRC
 /*${macro:end}*/
 
 /*******************************************************************************
