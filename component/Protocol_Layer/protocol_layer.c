@@ -15,114 +15,81 @@ file.
 #include "protocol_layer_cfg.h"  // Include the configuration header
 
 /*******************************************************************************
+ * Definitions
+ ******************************************************************************/
+#define ENET_RXBD_NUM          (4)
+#define ENET_TXBD_NUM          (4)
+#define ENET_RXBUFF_SIZE       (ENET_FRAME_MAX_FRAMELEN)
+#define ENET_TXBUFF_SIZE       (ENET_FRAME_MAX_FRAMELEN)
+#define ENET_DATA_LENGTH       (1000)
+#define ENET_TRANSMIT_DATA_NUM (20)
+
+#define CRC32_DATA_SIZE        (4)
+#define MAC_DATA_SIZE          (6)
+#define HEADER_MSG_SIZE        (14 + CRC32_DATA_SIZE)
+
+#define DATA_LENGTH_INDEX      (12)
+#define DATA_BUFFER_INDEX      (14)
+
+#define APP_ENET_BUFF_ALIGNMENT ENET_BUFF_ALIGNMENT
+#define PHY_AUTONEGO_TIMEOUT_COUNT (300000)
+
+#define SWAP16(value) (((value >> 8) & 0x00FF) | ((value << 8) & 0xFF00))
+
+/*******************************************************************************
+ * Data Types
+ ******************************************************************************/
+typedef struct
+{
+    uint8_t MACdst[MAC_DATA_SIZE];
+    uint8_t MACsrc[MAC_DATA_SIZE];
+    uint16_t DataLength;
+    uint8_t DataBuffer[ENET_DATA_LENGTH];
+} tstEthMsg;
+
+/*******************************************************************************
  * Variables
  ******************************************************************************/
-enet_handle_t g_handle;
-uint8_t g_frame[ENET_DATA_LENGTH + 14]; 
-uint8_t g_macAddr[6] = SRC_MAC_ADDRESS;
-uint8_t destMacAddr[] = DEST_MAC_ADDRESS;
-static CRC_Type *CRC_base = CRC_ENGINE;
-
-
-phy_handle_t phyHandle;
-#if ((EXAMPLE_USES_LOOPBACK_CABLE) && defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
-bool linkChange = false;
-#endif
-
-phy_config_t phyConfig = {0};
-uint32_t testTxNum = 0;
-uint32_t length = 0;
-enet_data_error_stats_t eErrStatic;
-status_t status;
-enet_config_t config;
-#if EXAMPLE_USES_LOOPBACK_CABLE
-volatile uint32_t count = 0;
-phy_speed_t speed;
-phy_duplex_t duplex;
-bool autonego = false;
-bool link = false;
-bool tempLink = false;
-#endif
-
-/*! @brief Buffer descriptors should be in non-cacheable region and should be align to "ENET_BUFF_ALIGNMENT". */
 AT_NONCACHEABLE_SECTION_ALIGN(enet_rx_bd_struct_t g_rxBuffDescrip[ENET_RXBD_NUM], ENET_BUFF_ALIGNMENT);
 AT_NONCACHEABLE_SECTION_ALIGN(enet_tx_bd_struct_t g_txBuffDescrip[ENET_TXBD_NUM], ENET_BUFF_ALIGNMENT);
-/*! @brief The data buffers can be in cacheable region or in non-cacheable region.
- * If use cacheable region, the alignment size should be the maximum size of "CACHE LINE SIZE" and "ENET_BUFF_ALIGNMENT"
- * If use non-cache region, the alignment size is the "ENET_BUFF_ALIGNMENT".
- */
 SDK_ALIGN(uint8_t g_rxDataBuff[ENET_RXBD_NUM][SDK_SIZEALIGN(ENET_RXBUFF_SIZE, APP_ENET_BUFF_ALIGNMENT)],
           APP_ENET_BUFF_ALIGNMENT);
 SDK_ALIGN(uint8_t g_txDataBuff[ENET_TXBD_NUM][SDK_SIZEALIGN(ENET_TXBUFF_SIZE, APP_ENET_BUFF_ALIGNMENT)],
           APP_ENET_BUFF_ALIGNMENT);
 
+enet_handle_t g_handle;
+phy_handle_t phyHandle;
+static CRC_Type *CRC_base = CRC_ENGINE;
 
+static uint8_t key[16] = AES_KEY;
+static uint8_t iv[16] = AES_IV;
 
+uint8_t g_frame[ENET_DATA_LENGTH + 14]; 
+uint8_t g_macAddr[6] = SRC_MAC_ADDRESS;
 
 /*******************************************************************************
- * Code
+ * Private functions
  ******************************************************************************/
+/*! @brief Initialize PHY. */
+static void ProtocolLayer_initPHY(void)
+{
+    volatile uint32_t count = 0;
+    phy_config_t phyConfig = {0};
+    status_t status;
 
-// Function to initialize the protocol layer
-void ProtocolLayer_init(void) {
+    bool link = false;
+    bool autonego = false;
 
-
-    // Initialize Ethernet interface
-    PRINTF("\r\nENET example start.\r\n");
-
-    /* Prepare the buffer configuration. */
-    enet_buffer_config_t buffConfig[] = {{
-        ENET_RXBD_NUM,
-        ENET_TXBD_NUM,
-        SDK_SIZEALIGN(ENET_RXBUFF_SIZE, APP_ENET_BUFF_ALIGNMENT),
-        SDK_SIZEALIGN(ENET_TXBUFF_SIZE, APP_ENET_BUFF_ALIGNMENT),
-        &g_rxBuffDescrip[0],
-        &g_txBuffDescrip[0],
-        &g_rxDataBuff[0][0],
-        &g_txDataBuff[0][0],
-        true,
-        true,
-        NULL,
-    }};
-
-    /* Get default configuration. */
-    /*
-     * config.miiMode = kENET_RmiiMode;
-     * config.miiSpeed = kENET_MiiSpeed100M;
-     * config.miiDuplex = kENET_MiiFullDuplex;
-     * config.rxMaxFrameLen = ENET_FRAME_MAX_FRAMELEN;
-     */
-    ENET_GetDefaultConfig(&config);
-
-    /* The miiMode should be set according to the different PHY interfaces. */
-#ifdef EXAMPLE_PHY_INTERFACE_RGMII
-    config.miiMode = kENET_RgmiiMode;
-#else
-    config.miiMode = kENET_RmiiMode;
-#endif
     phyConfig.phyAddr = EXAMPLE_PHY_ADDRESS;
-#if EXAMPLE_USES_LOOPBACK_CABLE
     phyConfig.autoNeg = true;
-#else
-    phyConfig.autoNeg = false;
-    config.miiDuplex  = kENET_MiiFullDuplex;
-#endif
-    phyConfig.ops      = EXAMPLE_PHY_OPS;
+    phyConfig.ops = EXAMPLE_PHY_OPS;
     phyConfig.resource = EXAMPLE_PHY_RESOURCE;
-#if (defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
-    phyConfig.intrType = kPHY_IntrActiveLow;
-#endif
 
-    /* Initialize PHY and wait auto-negotiation over. */
-    PRINTF("Wait for PHY init...\r\n");
-#if EXAMPLE_USES_LOOPBACK_CABLE
     do
     {
         status = PHY_Init(&phyHandle, &phyConfig);
         if (status == kStatus_Success)
         {
-            PRINTF("Wait for PHY link up...\r\n");
-            /* Wait for auto-negotiation success and link up */
             count = PHY_AUTONEGO_TIMEOUT_COUNT;
             do
             {
@@ -142,244 +109,220 @@ void ProtocolLayer_init(void) {
             }
         }
     } while (!(link && autonego));
-#else
-    while (PHY_Init(&phyHandle, &phyConfig) != kStatus_Success)
-    {
-        PRINTF("PHY_Init failed\r\n");
-    }
-
-    /* set PHY link speed/duplex and enable loopback. */
-    PHY_SetLinkSpeedDuplex(&phyHandle, (phy_speed_t)config.miiSpeed, (phy_duplex_t)config.miiDuplex);
-    PHY_EnableLoopback(&phyHandle, kPHY_LocalLoop, (phy_speed_t)config.miiSpeed, true);
-#endif /* EXAMPLE_USES_LOOPBACK_CABLE */
-
-#if PHY_STABILITY_DELAY_US
-    /* Wait a moment for PHY status to be stable. */
-    SDK_DelayAtLeastUs(PHY_STABILITY_DELAY_US, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);
-#endif
-
-#if EXAMPLE_USES_LOOPBACK_CABLE
-    /* Get the actual PHY link speed and set in MAC. */
-    PHY_GetLinkSpeedDuplex(&phyHandle, &speed, &duplex);
-    config.miiSpeed  = (enet_mii_speed_t)speed;
-    config.miiDuplex = (enet_mii_duplex_t)duplex;
-#endif
-
-#ifndef USER_DEFINED_MAC_ADDRESS
-    /* Set special address for each chip. */
-uint8_t srcMacAddr[] = SRC_MAC_ADDRESS;
-    memcpy(g_macAddr, srcMacAddr, 6);
-#else
-    SILICONID_ConvertToMacAddr(&g_macAddr);
-#endif
-
-    /* Init the ENET. */
-    ENET_Init(EXAMPLE_ENET, &g_handle, &config, &buffConfig[0], &g_macAddr[0], EXAMPLE_CLOCK_FREQ);
-    ENET_ActiveRead(EXAMPLE_ENET);
-
-    #if EXAMPLE_USES_LOOPBACK_CABLE
-        /* PHY link status update. */
-#if (defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
-        if (linkChange)
-        {
-            linkChange = false;
-            PHY_ClearInterrupt(&phyHandle);
-            PHY_GetLinkStatus(&phyHandle, &link);
-            GPIO_EnableLinkIntr();
-        }
-#else
-        PHY_GetLinkStatus(&phyHandle, &link);
-#endif
-        if (tempLink != link)
-        {
-            PRINTF("PHY link changed, link status = %u\r\n", link);
-            tempLink = link;
-        }
-#endif /*EXAMPLE_USES_LOOPBACK_CABLE*/
-
 }
 
-#define CRC32_DATA_SIZE 4 // Size of the CRC is 4 bytes
+/*! @brief Apply padding to the data. */
+static void ApplyPadding(uint8_t* data, size_t length, uint8_t* paddedData, size_t* paddedLength)
+{
+    uint16_t padSize = AES_BLOCKLEN - (length % AES_BLOCKLEN);
+    *paddedLength = length + padSize;
 
-// Function to initialize CRC32
-void ProtocolLayer_initCRC32(void) 
+    memcpy(paddedData, data, length);
+    memset(paddedData + length, padSize, padSize);
+}
+
+/*! @brief Remove padding from the data. */
+static void RemovePadding(uint8_t* data, size_t length, size_t* dataLength)
+{
+    uint8_t padValue = data[length - 1];
+    if (padValue > AES_BLOCKLEN)
+    {
+        PRINTF("Incorrect padding.\r\n");
+        *dataLength = 0;
+        return;
+    }
+
+    for (size_t i = 0; i < padValue; i++)
+    {
+        if (data[length - 1 - i] != padValue)
+        {
+            PRINTF("Incorrect padding.\r\n");
+            *dataLength = 0;
+            return;
+        }
+    }
+
+    *dataLength = length - padValue;
+}
+
+/*! @brief Initialize CRC32 configuration. */
+void ProtocolLayer_initCRC32(void)
 {
     crc_config_t config;
 
-    config.polynomial    = kCRC_Polynomial_CRC_32;
-    config.reverseIn     = true;
-    config.complementIn  = false;
-    config.reverseOut    = true;
+    config.polynomial = kCRC_Polynomial_CRC_32;
+    config.reverseIn = true;
+    config.complementIn = false;
+    config.reverseOut = true;
     config.complementOut = true;
-    config.seed          = 0xFFFFFFFFU;
+    config.seed = 0xFFFFFFFFU;
 
-    CRC_Init(CRC_base, &config); 
+    CRC_Init(CRC_base, &config);
 }
 
-// Function to check the CRC of a received message
-static bool ProtocolLayer_CheckCRC(uint8_t* frame, uint32_t frameLength) {
-    bool status = false;
-    uint32_t msgCRC = 0;
-    uint32_t calCRC = 0;
+/*! @brief Check the CRC32 of the received message. */
+static bool CheckCRC(const uint8_t* buffer, uint16_t length, CRC_Type* crcBase)
+{
+    uint32_t receivedCRC = 0;
+    uint32_t calculatedCRC = 0;
 
-    // Ensure that the frame length is at least 4 to obtain the CRC
-    if (frameLength < CRC32_DATA_SIZE) {
-        return status; // Cannot verify if the size is less than the CRC
-    }
+    memcpy(&receivedCRC, &buffer[length], CRC32_DATA_SIZE);
 
-    // Get the CRC from the message (last 4 bytes)
-    memcpy((uint8_t*)&msgCRC, &frame[frameLength - CRC32_DATA_SIZE], CRC32_DATA_SIZE);
-    frameLength -= CRC32_DATA_SIZE; // Adjust the length to exclude the CRC
+    ProtocolLayer_initCRC32();
+    CRC_WriteData(crcBase, buffer, length);
+    calculatedCRC = CRC_Get32bitResult(crcBase);
 
-    // Initialize the CRC
-    CRC_WriteSeed(CRC_base, 0xFFFFFFFF); // Initialize the CRC
-
-    // Write the rest of the data into the CRC module to calculate the CRC
-    CRC_WriteData(CRC_base, frame, frameLength);
-    calCRC = CRC_Get32bitResult(CRC_base); // Get the calculated CRC
-
-    // Compare the CRCs
-    if (msgCRC == calCRC) {
-        status = true; // CRC matches
-    }
-
-    return status; // Return the validation status
+    return (receivedCRC == calculatedCRC);
 }
 
-// Function to calculate CRC32
-uint32_t CRC32_calculate(const uint8_t* data, size_t length) {
-    CRC_WriteSeed(CRC_base, 0xFFFFFFFF); // Initialize the CRC
-    CRC_WriteData(CRC_base, data, length); // Write the data to the CRC module
-    return CRC_Get32bitResult(CRC_base); // Get the calculated CRC
+/*******************************************************************************
+ * Global functions
+ ******************************************************************************/
+/*! @brief Initialize the protocol layer, including the Ethernet interface. */
+void ProtocolLayer_init(void)
+{
+    enet_config_t config;
+    phy_speed_t speed;
+    phy_duplex_t duplex;
+    uint8_t g_macAddr[MAC_DATA_SIZE] = SRC_MAC_ADDRESS;
+
+    enet_buffer_config_t buffConfig[] = {{
+        ENET_RXBD_NUM,
+        ENET_TXBD_NUM,
+        SDK_SIZEALIGN(ENET_RXBUFF_SIZE, APP_ENET_BUFF_ALIGNMENT),
+        SDK_SIZEALIGN(ENET_TXBUFF_SIZE, APP_ENET_BUFF_ALIGNMENT),
+        &g_rxBuffDescrip[0],
+        &g_txBuffDescrip[0],
+        &g_rxDataBuff[0][0],
+        &g_txDataBuff[0][0],
+        true,
+        true,
+        NULL,
+    }};
+
+    ENET_GetDefaultConfig(&config);
+
+    config.miiMode = kENET_RmiiMode;
+
+    ProtocolLayer_initPHY();
+
+    PHY_GetLinkSpeedDuplex(&phyHandle, &speed, &duplex);
+    config.miiSpeed = (enet_mii_speed_t)speed;
+    config.miiDuplex = (enet_mii_duplex_t)duplex;
+
+    config.macSpecialConfig = kENET_ControlRxBroadCastRejectEnable;
+
+    ENET_Init(EXAMPLE_ENET, &g_handle, &config, &buffConfig[0], &g_macAddr[0], EXAMPLE_CLOCK_FREQ);
+    ENET_ActiveRead(EXAMPLE_ENET);
+
+    // Initialize CRC32
+    crc_config_t crcConfig;
+    crcConfig.polynomial    = kCRC_Polynomial_CRC_32;
+    crcConfig.reverseIn     = true;
+    crcConfig.complementIn  = false;
+    crcConfig.reverseOut    = true;
+    crcConfig.complementOut = true;
+    crcConfig.seed          = 0xFFFFFFFFU;
+    CRC_Init(CRC_base, &crcConfig);
 }
 
-// Function to send a message over Ethernet
-void ProtocolLayer_send(const uint8_t* message, size_t length) {
-    uint8_t frame[ENET_DATA_LENGTH + 14 + 4]; // 14 bytes for Ethernet header + 4 bytes for CRC32
-    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
+/*! @brief Send an encrypted message with CRC32 over Ethernet. */
+void ProtocolLayer_send(const uint8_t* message, size_t length)
+{
+    struct AES_ctx ctx;
+    uint32_t u32CRC = 0;
+    size_t u16MsgLength = 0;
+    bool link = false;
 
-    // Set the destination MAC address
-    for (uint32_t count = 0; count < 6U; count++) {
-        frame[count] = destMacAddr[count];
-    }
+    tstEthMsg stMsgInfo = {
+        .MACdst = DEST_MAC_ADDRESS,
+        .MACsrc = SRC_MAC_ADDRESS,
+    };
 
-    // Set the source MAC address
-    memcpy(&frame[6], &g_macAddr[0], 6U);
+    // Apply padding and encrypt the data
+    ApplyPadding((uint8_t*)message, length, stMsgInfo.DataBuffer, &u16MsgLength);
+    AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+    AES_CBC_encrypt_buffer(&ctx, stMsgInfo.DataBuffer, u16MsgLength);
+
+    // Calculate CRC32
+    ProtocolLayer_initCRC32();
+    CRC_WriteData(CRC_base, stMsgInfo.DataBuffer, u16MsgLength);
+    u32CRC = CRC_Get32bitResult(CRC_base);
+
+    // Append CRC32 to the DataBuffer
+    memcpy(&stMsgInfo.DataBuffer[u16MsgLength], (uint8_t*)&u32CRC, CRC32_DATA_SIZE);
 
     // Set the length of the data
-    frame[12] = (length >> 8) & 0xFFU;
-    frame[13] = length & 0xFFU;
+    stMsgInfo.DataLength = SWAP16(u16MsgLength + CRC32_DATA_SIZE);
 
-    // Copy the message into the frame
-    memcpy(&frame[14], message, length);
-
-    // Ensure the payload is at least 48 bytes
-    if (length < 48) {
-        memset(&frame[14 + length], 0, 48 - length);
-        length = 48;
+    // Ensure the payload is at least 48 bytes and at most 1488 bytes
+    size_t totalLength = HEADER_MSG_SIZE + u16MsgLength + CRC32_DATA_SIZE;
+    if (totalLength < 48)
+    {
+        memset(stMsgInfo.DataBuffer + u16MsgLength + CRC32_DATA_SIZE, 0, 48 - totalLength);
+        totalLength = 48;
     }
-
-    // Calculate CRC32     
-    uint32_t crc = CRC32_calculate(frame, length + 14); 
-    memcpy(&frame[14 + length], &crc, 4);
+    else if (totalLength > 1488)
+    {
+        totalLength = 1488;
+    }
 
     // Send the frame over Ethernet
-    if (kStatus_Success == ENET_SendFrame(EXAMPLE_ENET, &g_handle, frame, length + 18, 0, false, NULL)) {
-        PRINTF("Message sent successfully!\r\n");
-    } else {
-        PRINTF("Failed to send message.\r\n");
+    PHY_GetLinkStatus(&phyHandle, &link);
+    if (link)
+    {
+        ENET_SendFrame(EXAMPLE_ENET, &g_handle, (uint8_t*)&stMsgInfo, totalLength, 0, false, NULL);
     }
 }
 
-/*I added this funtion only to print the received frame for debugging*/
-// Function to print the received frame
-void ProtocolLayer_printFrame(const uint8_t* frame, uint32_t frameLength) {
-    PRINTF("A frame received. The length %d\r\n", frameLength);
-    PRINTF("Dest Address %02x:%02x:%02x:%02x:%02x:%02x Src Address %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-           frame[0], frame[1], frame[2], frame[3], frame[4], frame[5],
-           frame[6], frame[7], frame[8], frame[9], frame[10], frame[11]);
+/*! @brief Receive a message from Ethernet, verify the CRC32, and decrypt it. */
+uint16_t ProtocolLayer_receive(uint8_t* msgBuffer)
+{
+    enet_data_error_stats_t eErrStatic;
+    uint32_t length = 0;
+    status_t status;
+    uint16_t msgLength = 0;
+    size_t unpadLength = 0;
+    bool CRC_check = false;
+    struct AES_ctx ctx;
 
-    // Print the received data in hex
-    PRINTF("Received data (hex): ");
-    for (uint32_t i = 0; i < frameLength; i++) {
-        PRINTF("%02x ", frame[i]);
-    }
-    PRINTF("\r\n");
+    status = ENET_GetRxFrameSize(&g_handle, &length, 0);
+    if (length != 0)
+    {
+        uint8_t *data = (uint8_t *)malloc(length);
+        status = ENET_ReadFrame(EXAMPLE_ENET, &g_handle, data, length, 0, NULL);
+        if (status == kStatus_Success)
+        {
+            memcpy((uint8_t*)&msgLength, &data[DATA_LENGTH_INDEX], sizeof(msgLength));
+            msgLength = SWAP16(msgLength) - CRC32_DATA_SIZE;
 
-    // Print the received data in ASCII
-    PRINTF("Received data (ASCII): ");
-    for (uint32_t i = 0; i < frameLength; i++) {
-        if (frame[i] >= 32 && frame[i] <= 126) { // Printable ASCII range
-            PRINTF("%c", frame[i]);
-        } else {
-            PRINTF(".");
-        }
-    }
-    PRINTF("\r\n");
-}
+            CRC_check = CheckCRC(&data[DATA_BUFFER_INDEX], (uint16_t)msgLength, CRC_base);
+            if (CRC_check == true)
+            {
+                AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+                AES_CBC_decrypt_buffer(&ctx, &data[DATA_BUFFER_INDEX], msgLength);
 
-// Function to receive a message from Ethernet
-void ProtocolLayer_receive(void) {
-    uint32_t frameLength = 0;
-    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
-
-    // Get the frame size
-    status = ENET_GetRxFrameSize(&g_handle, &frameLength, 0);
-    if (frameLength != 0) {
-        // Allocate memory for the frame
-        uint8_t* frame = (uint8_t*)malloc(frameLength);
-        if (frame == NULL) {
-            PRINTF("Failed to allocate memory for frame.\r\n");
-            return;
-        }
-
-        // Read the frame
-        status = ENET_ReadFrame(EXAMPLE_ENET, &g_handle, frame, frameLength, 0, NULL);
-        if (status == kStatus_Success) {
-            // Check if the destination MAC address matches
-            if (memcmp(frame, destMacAddr, 6) == 0) {
-                // Verify CRC32
-                if (ProtocolLayer_CheckCRC(frame, frameLength)) {
-                    // Process the received frame
-                    ProtocolLayer_printFrame(frame, frameLength - CRC32_DATA_SIZE);  // Print the received frame for debugging
-                } else {
-                    PRINTF("CRC mismatch. Frame may be corrupted.\r\n");
+                RemovePadding(&data[DATA_BUFFER_INDEX], msgLength, &unpadLength);
+                if (unpadLength > 0)
+                {
+                    memcpy(msgBuffer, &data[DATA_BUFFER_INDEX], unpadLength);
                 }
-            } else {
-                PRINTF("Received frame with non-matching destination MAC address.\r\n");
             }
-        } else {
-            PRINTF("Failed to read frame.\r\n");
+            else
+            {
+                PRINTF("CRC incorrecto.\r\n");
+            }
         }
 
-        // Free the allocated memory
-        free(frame);
-    } else if (status == kStatus_ENET_RxFrameError) {
-        // Update the received buffer when error happened
+        free(data);
+    }
+    else if (status == kStatus_ENET_RxFrameError)
+    {
         ENET_GetRxErrBeforeReadFrame(&g_handle, &eErrStatic, 0);
         ENET_ReadFrame(EXAMPLE_ENET, &g_handle, NULL, 0, 0, NULL);
     }
-}
 
-/*! @brief Build Frame for transmit. */
-void ENET_BuildBroadCastFrame(void)
-{
-    uint32_t count  = 0;
-    uint32_t length = ENET_DATA_LENGTH - 14;
-    uint8_t destMacAddr[] = DEST_MAC_ADDRESS;  // Use the defined destination MAC address
-
-    for (count = 0; count < 6U; count++)
-    {
-        g_frame[count] = destMacAddr[count];  // Set the destination MAC address
-    }
-    memcpy(&g_frame[6], &g_macAddr[0], 6U);  // Source MAC address
-    g_frame[12] = (length >> 8) & 0xFFU;
-    g_frame[13] = length & 0xFFU;
-
-    for (count = 0; count < length; count++)
-    {
-        g_frame[count + 14] = count % 0xFFU;
-    }
+    return unpadLength;
 }
 
 #if (defined(EXAMPLE_PHY_LINK_INTR_SUPPORT) && (EXAMPLE_PHY_LINK_INTR_SUPPORT))
@@ -388,5 +331,30 @@ void PHY_LinkStatusChange(void)
 #if (EXAMPLE_USES_LOOPBACK_CABLE)
     linkChange = true;
 #endif
+}
+
+static void InitCrc32(CRC_Type *base, uint32_t seed) {
+    crc_config_t config;
+
+    config.polynomial         = 0x04C11DB7U;
+    config.seed               = seed;
+    config.reflectIn          = true;
+    config.reflectOut         = true;
+    config.complementChecksum = true;
+    config.crcBits            = kCrcBits32;
+    config.crcResult          = kCrcFinalChecksum;
+
+    CRC_Init(base, &config);
+}
+
+uint32_t calculateCRC32(uint8_t* toCalculate, size_t length) {
+    CRC_Type *base = CRC0;
+    uint32_t crc32 = 0;
+
+    InitCrc32(base, 0xFFFFFFFFU);
+    CRC_WriteData(base, (uint8_t *)&toCalculate[0], length);
+    crc32 = CRC_Get32bitResult(base);
+
+    return crc32;
 }
 #endif

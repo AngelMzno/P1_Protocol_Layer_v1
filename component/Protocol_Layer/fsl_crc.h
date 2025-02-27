@@ -184,6 +184,14 @@ static inline uint16_t CRC_Get16bitResult(CRC_Type *base)
     return (uint16_t)base->SUM;
 }
 
+void CRC_Init(CRC_Type *base, const crc_config_t *config);
+void CRC_Reset(CRC_Type *base);
+void CRC_WriteSeed(CRC_Type *base, uint32_t seed);
+void CRC_GetDefaultConfig(crc_config_t *config);
+void CRC_GetConfig(CRC_Type *base, crc_config_t *config);
+void CRC_WriteData(CRC_Type *base, const uint8_t *data, size_t dataSize);
+uint32_t CRC_Get32bitResult(CRC_Type *base);
+
 #if defined(__cplusplus)
 }
 #endif

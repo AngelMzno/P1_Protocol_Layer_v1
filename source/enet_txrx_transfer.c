@@ -10,7 +10,7 @@
 #include "protocol_layer.h"
 #include "board.h"
 #include "app.h"
-#include "fsl_common.h"  
+#include "fsl_common.h"
 
 /*******************************************************************************
  * Definitions
@@ -33,24 +33,21 @@
  */
 int main(void)
 {
-    /* Hardware Initialization. */
     BOARD_InitHardware();
     ProtocolLayer_init();
 
-    /* Build broadcast for sending. */
-    ENET_BuildBroadCastFrame();
+   // ENET_BuildBroadCastFrame();
 
-    // Test the ProtocolLayer_send function
     test_ProtocolLayer_send();
 
+    uint8_t msgBuffer[ENET_DATA_LENGTH];
     while (1)
     {
-        // Receive a message
-        ProtocolLayer_receive();
+        ProtocolLayer_receive(msgBuffer);
     }
 }
 
-// Function to test ProtocolLayer_send
+/*! @brief Function to test ProtocolLayer_send. */
 void test_ProtocolLayer_send(void)
 {
     const char* messages[] = {
@@ -74,11 +71,12 @@ void test_ProtocolLayer_send(void)
 
     size_t num_messages = sizeof(messages) / sizeof(messages[0]);
 
+    uint8_t msgBuffer[ENET_DATA_LENGTH];
     for (size_t i = 0; i < num_messages; i++) {
         PRINTF("Sending test message: %s\r\n", messages[i]);
         ProtocolLayer_send((const uint8_t*)messages[i], strlen(messages[i]));
-        SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);  // Wait 2 seconds between each message
-        ProtocolLayer_receive();
+        SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);
+        ProtocolLayer_receive(msgBuffer);
         SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);
     }
 }
