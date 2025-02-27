@@ -47,8 +47,6 @@ int main(void)
     {
         // Receive a message
         ProtocolLayer_receive();
-
-
     }
 }
 
@@ -79,7 +77,7 @@ void test_ProtocolLayer_send(void)
     for (size_t i = 0; i < num_messages; i++) {
         PRINTF("Sending test message: %s\r\n", messages[i]);
         ProtocolLayer_send((const uint8_t*)messages[i], strlen(messages[i]));
-        SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);  // Esperar 2 segundos entre cada mensaje
+        SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);  // Wait 2 seconds between each message
         ProtocolLayer_receive();
         SDK_DelayAtLeastUs(2000000, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY);
     }
